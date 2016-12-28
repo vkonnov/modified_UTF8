@@ -1,0 +1,182 @@
+include <iostream>
+#include <string>
+#include <sstream>
+#include <vector>
+//#include <glib.h>
+
+
+using namespace std;
+
+typedef unsigned char BYTE;
+typedef vector<BYTE> byte_arr;
+
+
+int codepoint(const string &u);
+string codepointhex(const string &u);
+string utf8chr(int cp);
+ 
+byte_arr utf8_to_utf8modified(const string &utf8_normal);
+
+//int convertStringToUnicodeCodePoints(const string &u);
+
+/*
+Source:
+https://docs.oracle.com/javase/1.5.0/docs/guide/jni/spec/types.html
+http://docs.oracle.com/javase/6/docs/api/java/io/DataInput.html#modified-utf-8
+http://www.oracle.com/us/technologies/java/supplementary-142654.html
+*/
+
+
+int main(int argc, char *argv[])
+{
+/* 
+    for(int i=32; i<127; i++) //printable ascii range
+    {
+        cout << "i" << i << ":" <<utf8chr(i) << endl;
+    }
+    for(int i=192; i<382; i++) // À to ž
+    {
+        cout << "i" << i << ":" <<utf8chr(i) << endl;
+    }
+    for(int i=0x4f60; i<0x4f80; i++) // 你 to 使
+    {
+        cout << "i" << i << ":" <<utf8chr(i) << endl;
+    }
+ */
+    
+    string input0 = "A"; //A is ascii 65
+    string input1 = "\xc3\xa8"; // è
+    string input2 = "\xe4\xbd\xa0"; //你
+    string input_smile = "\xF0\x9F\x98\xAC"; // smile 
+    
+//    cout << input0 << ", "<< codepoint(input0) << "," << codepointhex(input0) << endl; //65,0x41
+//    cout << input1 << ", "<< codepoint(input1) << "," << codepointhex(input1) << endl; //232,0xe8
+//    cout << input2 << ", "<< codepoint(input2) << "," << codepointhex(input2) << endl; //20320,0x4f60
+//    cout << input_smile << ", " << codepoint(input_smile) << "," << codepointhex(input_smile) << endl; 
+    
+    cout << "input_smile size: " << input_smile.size() << endl;
+    cout << "input_smile length: " << input_smile.length() << endl;
+    for(unsigned int i = 0; i < input_smile.length();++i) {
+        cout << "[extract_jni_string] test: " << input_smile[i] << endl;
+    }
+    
+    cout << input_smile << ", " << codepoint(input_smile) << "," << codepointhex(input_smile) << endl; 
+    byte_arr ba = utf8_to_utf8modified(input_smile); 
+    for (int i = 0; i < 4; ++i) {
+        cout << "el: " << ba[i];
+    }
+    return 0;
+}
+ 
+int codepoint(const string &u)
+{
+    int l = u.length();
+    if (l<1) return -1; unsigned char u0 = u[0]; if (u0>=0   && u0<=127) return u0;
+    if (l<2) return -1; unsigned char u1 = u[1]; if (u0>=192 && u0<=223) return (u0-192)*64 + (u1-128);
+    if (u[0]==0xed && (u[1] & 0xa0) == 0xa0) return -1; //code points, 0xd800 to 0xdfff
+    if (l<3) return -1; unsigned char u2 = u[2]; if (u0>=224 && u0<=239) return (u0-224)*4096 + (u1-128)*64 + (u2-128);
+    if (l<4) return -1; unsigned char u3 = u[3]; if (u0>=240 && u0<=247) return (u0-240)*262144 + (u1-128)*4096 + (u2-128)*64 + (u3-128);
+    return -1;
+}
+ 
+string codepointhex(const string &u)
+{
+    stringstream ss;
+    string s;
+    ss << showbase << hex << codepoint(u);
+    ss >> s;
+    return s;
+}
+ 
+ 
+string utf8chr(int cp)
+{
+    char c[5]={ 0x00,0x00,0x00,0x00,0x00 };
+    if     (cp<=0x7F) { c[0] = cp;  }
+    else if(cp<=0x7FF) { c[0] = (cp>>6)+192; c[1] = (cp&63)+128; }
+    else if(0xd800<=cp && cp<=0xdfff) {} //invalid block of utf8
+    else if(cp<=0xFFFF) { c[0] = (cp>>12)+224; c[1]= ((cp>>6)&63)+128; c[2]=(cp&63)+128; }
+    else if(cp<=0x10FFFF) { c[0] = (cp>>18)+240; c[1] = ((cp>>12)&63)+128; c[2] = ((cp>>6)&63)+128; c[3]=(cp&63)+128; }
+    return string(c);
+}
+
+typedef vector<BYTE> byte_arr;
+
+byte_arr utf8_to_utf8modified(const string &utf8_normal) {
+    // https://docs.oracle.com/javase/1.5.0/docs/guide/jni/spec/types.html
+    
+    byte_arr result;
+ 
+
+    unsigned char c = utf8_normal[0];
+    
+    if(c == 0) {
+       // First, the null character (char)0 is encoded using the two-byte format rather than the one-byte format.
+       result.push_back(0);
+       result.push_back(0);
+    }
+    else if(c <= 0x7F) { 
+        /*to do*/
+    }
+    else if(c >= 0x80) { 
+        // проверяем второй байт
+        unsigned char c2 = utf8_normal[1];
+        if(c2 <= 7) {
+            // значит это пара нормального UTF8
+        } else if(c2 > 7 && c2<=0xFF) {
+            // значит это третий байт нормального UTF8
+        } else {
+            unsigned long c3 = utf8_normal[2];
+            unsigned long code = (c3<<16) | (c2<<8) | c;
+             
+            unsigned char U = 0xED; // 11101101
+            unsigned char V = (0xA << 4)  | (code&0xF0000); // 0000 0000 0000 1111 0000 0000 0000 0000 // ? '-1'
+            unsigned char W = (0x02 << 6) | (code&0xFC00); // 0000 0000 0000 0000 1111 1100 0000 0000
+            unsigned char X = 0xED; // 11101101
+            unsigned char Y = (0xB << 4) | (code&0x3C0); // 0000 0000 0000 0000 0000 0011 1100 0000
+            unsigned char Z = (0x02 << 6) ; // 11101101
+            
+            result.push_back(U);
+            result.push_back(V);
+            result.push_back(W);
+            result.push_back(X);
+            result.push_back(Y);
+            result.push_back(Z);
+        }
+        
+        
+    }
+    
+    return result;
+}
+    
+
+//------
+
+/*
+// "あい" => [ 0x3042,  0x3044 ]
+int convertStringToUnicodeCodePoints(const string &u) {
+    
+  int surrogate_1st = 0;
+  int unicode_codes = [];
+  for (int i = 0; i < str.length(); ++i) {
+    int utf16_code = str.charCodeAt(i);
+    if (surrogate_1st != 0) {
+      if (utf16_code >= 0xDC00 && utf16_code <= 0xDFFF) {
+        var surrogate_2nd = utf16_code;
+        var unicode_code = (surrogate_1st - 0xD800) * (1 << 10) + (1 << 16) +
+                           (surrogate_2nd - 0xDC00);
+        unicode_codes.push_back(unicode_code);
+      } else {
+        // Malformed surrogate pair ignored.
+      }
+      surrogate_1st = 0;
+    } else if (utf16_code >= 0xD800 && utf16_code <= 0xDBFF) {
+      surrogate_1st = utf16_code;
+    } else {
+      unicode_codes.push_back(utf16_code);
+    }
+  }
+  return unicode_codes;
+}
+*/
