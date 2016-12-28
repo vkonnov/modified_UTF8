@@ -1,2 +1,5 @@
-# modified_UTF8
-Java modified UTF-8
+# Modified UTF-8
+ 
+Modified UTF-8 is not new to the Java platform, but it's something that application developers need to be more aware of when converting text that might contain supplementary characters to and from UTF-8. The main thing to remember is that some J2SE interfaces use an encoding that's similar to UTF-8 but incompatible with it. This encoding has in the past sometimes been called "Java modified UTF-8" or (incorrectly) just "UTF-8". For J2SE 5.0, the documentation is being updated to uniformly call it "modified UTF-8." 
+
+The incompatibility between modified UTF-8 and standard UTF-8 stems from two differences. First, modified UTF-8 represents the character U+0000 as the two-byte sequence 0xC0 0x80, whereas standard UTF-8 uses the single byte value 0x0. Second, modified UTF-8 represents supplementary characters by separately encoding the two surrogate code units of their UTF-16 representation. Each of the surrogate code units is represented by three bytes, for a total of six bytes. Standard UTF-8, on the other hand, uses a single four byte sequence for the complete character. 
